@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Check for Global Entry interview openings in your city."""
 
 import sys
@@ -20,18 +20,27 @@ if __name__ == '__main__':
     now = datetime.datetime.now()
     delta = datetime.timedelta(weeks=config.look_ahead_weeks)
     future = now + delta
+    start_time = now + datetime.timedelta(seconds=config.not_before)
+
     request_url = config.global_entry_query_url.format(
-        timestamp=future.strftime("%Y-%m-%d"))
+        location=config.location,
+        start_timestamp=start_time.replace(microsecond=0).isoformat(),
+        end_timestamp=future.replace(microsecond=0).isoformat()
+    )
     result = requests.get(request_url).json()
-    cities = [o.get('city').lower() for o in result]
-    if config.search_string.lower() in cities:
+    text_arr = []
+    for r in result:
+        if r['active'] > 0:
+            text_arr.append(f"{r['active']} openings {r['timestamp']}")
+
+    if len(text_arr) > 0:
         client = Client(config.twilio_account, config.twilio_token)
         message = client.messages.create(
             to=config.to_number,
             from_=config.twilio_from_number,
-            body="Global Entry interview opportunity in {} \
-opened up just now!".format(config.search_string))
-        log("text message sent")
+            body="GE interview\n{}\n{}".format(config.global_entry_goto_url, "\n".join(text_arr))
+        )
+        log("text message sent {} {}".format(message, "\n".join(text_arr)))
         sys.exit(0)
     log("no news")
     sys.exit(1)
